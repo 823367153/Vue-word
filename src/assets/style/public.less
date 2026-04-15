@@ -1,0 +1,531 @@
+body {
+}
+/* 整个滚动条 */
+::-webkit-scrollbar {
+  width: 1px; /* 滚动条宽度 */
+  height: 12px; /* 滚动条高度（用于水平滚动条） */
+}
+
+/* 滚动条轨道 */
+::-webkit-scrollbar-track {
+  background: #f1f1f1; /* 轨道背景色 */
+  border-radius: 6px; /* 轨道圆角 */
+}
+
+/* 滚动条滑块 */
+::-webkit-scrollbar-thumb {
+  background: #888; /* 滑块背景色 */
+  border-radius: 6px; /* 滑块圆角 */
+}
+
+/* 滑块在悬停时的颜色 */
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.login_container {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+.chouti .arco-drawer {
+  background-color: black !important;
+  color: #ffffff;
+}
+.mainsera .arco-input-suffix {
+  position: absolute;
+  left: -5px;
+  top: 10px;
+}
+.mainsera .arco-input-wrapper {
+  color: #888888;
+  background-color: #424548;
+  padding-left: 25px;
+}
+.chouti .arco-drawer-body {
+  color: #ffffff;
+}
+.tpinputzd {
+  width: 249px;
+  height: 34px;
+  border-radius: 4px;
+  background-color: #fff !important;
+}
+.chouti .arco-drawer-title {
+  color: #ffffff;
+}
+.login_containerback {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.login_containericon {
+  position: absolute;
+  left: 335px;
+  top: 355px;
+}
+
+.login_title {
+  position: absolute;
+  left: 50%;
+  top: 120px;
+  transform: translate(-50%, 0);
+  // left: 200px;
+  // top: 100px;
+  height: auto;
+  font-family: PingFang SC;
+  font-weight: 600;
+  font-size: 60px;
+  letter-spacing: 2px;
+  color: #007dff;
+  line-height: 60px;
+  text-align: left;
+}
+
+.login_title span {
+  background: #ffffff;
+  font-family: PingFang SC;
+  font-weight: bold;
+  font-size: 26px;
+  color: #007eff;
+  border-radius: 49px 49px 49px 49px;
+  padding: 5px 20px;
+  margin: 0 0 0 30px;
+  float: left;
+}
+
+.login_form {
+  position: absolute;
+  right: 196px;
+  top: 50%;
+  transform: translate(0, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.login-form-password-actions .arco-checkbox-label {
+  font-size: 16px;
+  color: #ffffff;
+}
+.login_formcont {
+  margin: 20px auto;
+  height: auto;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+}
+.login_formcont .arco-input-wrapper {
+  background: #303548;
+  color: #fff;
+  border-radius: 8px;
+}
+.login_formcont .arco-input-wrapper.arco-input-error:focus-within,
+.arco-input-wrapper.arco-input-error.arco-input-wrapper-focus {
+  background: #303548;
+  color: #fff;
+  border-radius: 8px;
+}
+.logintiel {
+  color: #8f94a0;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+.login_formtitle {
+  width: 100%;
+  height: auto;
+  text-align: center;
+  line-height: 30px;
+  font-size: 32px;
+  color: #ffffff;
+  margin: 30px 0;
+}
+
+.login_formicon {
+  color: #1890ff;
+  font-size: 16px;
+  line-height: 54px;
+  position: relative;
+  top: 12px;
+}
+
+.login_form .el-input__prefix {
+  width: 60px;
+  text-align: center;
+  left: 0;
+}
+
+.login_form .el-input__prefix:after {
+  content: ' ';
+  position: absolute;
+  right: 5px;
+  top: 15px;
+  height: 24px;
+  width: 1px;
+  background: #dde0eb;
+}
+
+.login_form .arco-form-item-message {
+  min-height: 30px;
+  line-height: 30px;
+  font-size: 14px;
+}
+
+.login_form .arco-input.arco-input-size-large {
+  height: 54px;
+  line-height: 54px;
+}
+
+.login_formbtn {
+  width: 463px;
+  height: 66px;
+  background: linear-gradient(180deg, #b3c1d2 0%, #748191 100%);
+  border-radius: 4px 4px 4px 4px;
+  font-size: 22px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.login_formbtn:hover {
+  text-align: center;
+  font-size: 22px;
+  cursor: pointer;
+  width: 463px;
+  height: 66px;
+  background: linear-gradient(180deg, #6a81b2 0%, #272d46 100%);
+  border-radius: 8px 8px 8px 8px;
+  border: 1px solid #303443;
+}
+
+.login_bottom {
+  width: 100%;
+  position: absolute;
+  left: 0;
+  height: 50px;
+  text-align: center;
+  bottom: 0;
+  font-size: 14px;
+  font-family: Source Han Serif CN-Light, Source Han Serif CN;
+  font-weight: 300;
+  color: #ffffff;
+}
+
+.select_tree {
+  max-height: 200px;
+  width: 100%;
+  overflow-y: auto;
+}
+
+.img_uploads {
+  height: 120px;
+  width: 120px;
+  box-sizing: border-box;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background: #f5f5f5;
+  overflow: hidden;
+  cursor: pointer;
+  line-height: 120px;
+  text-align: center;
+  font-size: 22px;
+  color: #949494;
+  position: relative;
+}
+
+.img_uploads:hover {
+  border: 1px solid #5cb6ff;
+  color: #5cb6ff;
+}
+
+.img_uploads_add {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.img_uploads_add:hover {
+  color: #5cb6ff;
+}
+
+.img_uploads img {
+  height: 100%;
+  width: 100%;
+}
+
+.arco_tree_text {
+  box-sizing: border-box;
+  padding: 0 60px 0 0;
+  div.arco-typography,
+  p.arco-typography {
+    margin: 0;
+  }
+}
+
+.tree_list {
+  width: 300px;
+  height: 100%;
+  overflow-y: auto;
+  background: #fefefe;
+  .arco-tree-node-title-text {
+    width: 100%;
+  }
+  .arco-tree-node-title {
+    padding: 0 5px;
+    height: 36px;
+    line-height: 36px;
+  }
+}
+
+.arco_tree_text_all {
+  box-sizing: border-box;
+  div.arco-typography,
+  p.arco-typography {
+    margin: 0;
+  }
+}
+
+.arco_tree_text_in {
+  line-height: 36px;
+  height: 36px;
+}
+
+.arco_tree_text_in.active {
+  color: rgb(var(--primary-6));
+}
+
+.arco_tree_btns {
+  position: absolute;
+  right: 8px;
+  font-size: 12px;
+  top: 50%;
+  color: #3370ff;
+  transform: translateY(-50%);
+}
+
+.chapter_text {
+  box-sizing: border-box;
+  padding: 0 140px 0 0;
+  position: relative;
+}
+
+.chapter_text_in {
+  line-height: 36px;
+  height: 36px;
+}
+
+.chapter_text_in.active {
+  color: rgb(var(--primary-6));
+}
+
+.section_text {
+  box-sizing: border-box;
+  padding: 0 140px 0 20px;
+  position: relative;
+}
+
+.file_text {
+  box-sizing: border-box;
+  padding: 0 0 0 40px;
+  position: relative;
+}
+
+.chapter_text_all {
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 0 5px;
+}
+
+.chapter_text_all:hover {
+  background: #eeeeee;
+}
+
+.chapter_input_all {
+  width: 100%;
+}
+
+.upload_area {
+  width: 100%;
+  height: 100px;
+  background: #cccccc;
+  border-radius: 5px;
+  box-sizing: border-box;
+  border: 1px solid #cccccc;
+  cursor: pointer;
+  text-align: center;
+  line-height: 100px;
+  margin: 0 0 30px;
+}
+
+.upload_area:hover {
+  border: 1px solid #2395f1;
+}
+.zddiv .arco-table-td {
+  border-bottom: none !important;
+  background: none;
+}
+.zddiv .arco-table-tr {
+  margin: 10px 0 !important;
+}
+
+.zddiv.arco-table-hover:not(.arco-table-dragging)
+  .arco-table-tr:not(.arco-table-tr-empty):not(.arco-table-tr-summary):hover
+  .arco-table-td:not(.arco-table-col-fixed-left):not(
+    .arco-table-col-fixed-right
+  ),
+.arco-table-hover
+  .arco-table-tr-drag
+  .arco-table-td:not(.arco-table-col-fixed-left):not(
+    .arco-table-col-fixed-right
+  ) {
+  background-color: transparent !important;
+}
+/* 封装公共按钮类 */
+.tool {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.tool img.active {
+  cursor: pointer;
+  display: none;
+}
+
+.tool:hover img.normal,
+.tool.active img.normal {
+  display: none;
+}
+
+.tool:hover img.active,
+.tool.active img.active {
+  display: block;
+}
+
+/* 滚动条美化 */
+.beautifulScroll::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+  background: rgba(0, 0, 0, 0);
+  border-radius: 5px;
+}
+
+.beautifulScroll::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0);
+  border-radius: 5px;
+}
+
+.beautifulScroll::-webkit-scrollbar-thumb {
+  border-radius: 5px;
+  background: #666666;
+}
+.rtimgd .arco-tree-node {
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 3px 3px 3px 3px;
+  margin: 5px 0;
+}
+.rtimgd .arco-tree-node-title:hover {
+  background-color: transparent;
+}
+.rtimgd .arco-tree-node-selected .arco-tree-node-title,
+.arco-tree-node-selected .arco-tree-node-title:hover {
+  color: #0d82e2;
+}
+.rtimgd .arco-tree-node-selected {
+  background-color: #d8eaff;
+}
+.mainsers .arco-select-view-single.arco-select-view-search {
+  margin-left: 15px;
+}
+.mainsers .arco-select-view-single {
+  background: linear-gradient(180deg, #efefef 0%, #d9d9d9 100%);
+}
+// .recordmain thead {
+//   margin: 10px 0 !important;
+//   border-radius: 100px;
+//   overflow: hidden;
+// }
+/* 确保表格没有 collapse 样式 */
+/* 设置表头的圆角 */
+/* 设置表头的圆角 */
+// .custom-arco-table .arco-table-element .arco-table-th {
+//   border-radius: 10px; /* 给表头添加圆角 */
+// }
+
+// /* 设置单元格的圆角：只给第一行和最后一行的第一列和最后一列添加圆角 */
+// .custom-arco-table .arco-table-element .arco-table-td {
+//   border-radius: 0; /* 默认不设置圆角 */
+//   padding: 10px;
+// }
+
+// /* 第一行的圆角 */
+// .custom-arco-table
+//   .arco-table-element
+//   .arco-table-tbody
+//   .arco-table-tr:first-child
+//   .arco-table-td:first-child {
+//   border-top-left-radius: 10px; /* 第一行第一列左上角 */
+// }
+
+// .custom-arco-table
+//   .arco-table-element
+//   .arco-table-tbody
+//   .arco-table-tr:first-child
+//   .arco-table-td:last-child {
+//   border-top-right-radius: 10px; /* 第一行最后一列右上角 */
+// }
+
+// /* 最后一行的圆角 */
+// .custom-arco-table
+//   .arco-table-element
+//   .arco-table-tbody
+//   .arco-table-tr:last-child
+//   .arco-table-td:first-child {
+//   border-bottom-left-radius: 10px; /* 最后一行第一列左下角 */
+// }
+
+// .custom-arco-table
+//   .arco-table-element
+//   .arco-table-tbody
+//   .arco-table-tr:last-child
+//   .arco-table-td:last-child {
+//   border-bottom-right-radius: 10px; /* 最后一行最后一列右下角 */
+// }
+/* 确保表格的 border-collapse 是 separate，允许圆角显示 */
+
+.mainxg .arco-form-item-label-col > .arco-form-item-label {
+  font-size: 20px;
+  font-family: PingFang SC;
+  font-weight: 400;
+  color: #7a7979;
+  line-height: 50px;
+}
+.mainxg .arco-input-wrapper {
+  width: 365px;
+  height: 50px;
+  background: #ffffff;
+  border-radius: 6px 6px 6px 6px;
+}
+
+.zlboxmainbox .arco-form-item-label {
+  font-size: 20px;
+}
+
+.zlboxmainbox .arco-upload-picture-card {
+  border-radius: 50%;
+  height: 120px;
+  width: 120px;
+}

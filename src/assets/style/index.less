@@ -1,0 +1,543 @@
+@import './font.less';
+@import './public.less';
+
+* {
+    box-sizing: border-box;
+}
+
+.loader-container {
+    text-align: center;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 99;
+}
+
+.sbodyd {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000000;
+}
+
+.czmainitem img {
+    width: 38px;
+    height: 38px;
+}
+
+.kfbsbox {
+    background-color: #00bd2f;
+    color: #fff;
+    font-size: 14px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 9;
+    right: 5px;
+    top: 5px;
+    border-radius: 5px;
+}
+
+.kfbsboxs {
+    background-color: #ff8800;
+    color: #fff;
+    font-size: 14px;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    z-index: 9;
+    right: 5px;
+    top: 5px;
+    border-radius: 5px;
+}
+
+.gnbottom img {
+    width: 50px;
+    height: 50px;
+}
+
+.sbody {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+    overflow-y: auto;
+}
+
+#app {
+    -moz-transform-origin: 0 0;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    overflow: hidden;
+}
+
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.pd {
+    font-family: Arial, sans-serif;
+    color: #fff;
+    font-size: 16px;
+    margin-top: 10px;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: var(--color-bg-1);
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+    font-family: PingFang SC, PingFang SC !important;
+    font-size: 16px;
+}
+
+/* 滚动条美化 */
+.beautifulScroll::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+    background: rgba(0, 0, 0, 0);
+    border-radius: 5px;
+}
+
+.beautifulScroll::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0);
+    border-radius: 5px;
+}
+
+.beautifulScroll::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+    background: #666666;
+}
+
+//  .tpinputbox input {
+//      background-color: #f5f6fa !important;
+//  }
+body,
+div,
+dl,
+dt,
+dd,
+ul,
+ol,
+li,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+pre,
+code,
+form,
+fieldset,
+legend,
+input,
+button,
+textarea,
+p,
+blockquote,
+th,
+td {
+    margin: 0;
+    padding: 0;
+}
+
+fieldset,
+img {
+    border: 0
+}
+
+:focus {
+    outline: 0
+}
+
+address,
+caption,
+cite,
+code,
+dfn,
+em,
+strong,
+th,
+var,
+optgroup {
+    font-style: normal;
+    font-weight: 400
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-size: 100%;
+    font-weight: 400
+}
+
+abbr,
+acronym {
+    border: 0;
+    font-variant: normal
+}
+
+code,
+kbd,
+samp,
+tt {
+    font-size: 100%
+}
+
+input,
+button,
+textarea,
+select {
+    *font-size: 100%;
+    border: 0
+}
+
+ol,
+ul {
+    list-style: none
+}
+
+table {
+    border-collapse: collapse;
+    border-spacing: 0
+}
+
+caption,
+th {
+    text-align: left
+}
+
+sup,
+sub {
+    font-size: 100%;
+    vertical-align: baseline
+}
+
+:link,
+:visited,
+ins {
+    text-decoration: none
+}
+
+blockquote,
+q {
+    quotes: none
+}
+
+blockquote:before,
+blockquote:after,
+q:before,
+q:after {
+    content: '';
+    content: none
+}
+
+.clearfix:after {
+    content: '\0020';
+    display: block;
+    height: 0;
+    clear: both;
+    visibility: hidden
+}
+
+.clearfix {
+    zoom: 1
+}
+
+.l {
+    float: left
+}
+
+.r {
+    float: right
+}
+
+.hide {
+    display: none
+}
+
+.inline {
+    display: inline;
+}
+
+.inlinBlock {
+    display: inline-block;
+}
+
+a.hidefocus {
+    outline: 0
+}
+
+button.hidefocus::-moz-focus-inner {
+    border: 0
+}
+
+a:focus {
+    outline: 0;
+    -moz-outline: 0
+}
+
+input,
+textarea {
+    outline: 0
+}
+
+h2 {
+    font-size: 20px
+}
+
+h3 {
+    font-size: 16px;
+    line-height: 32px
+}
+
+h5 {
+    font-size: 14px;
+    line-height: 28px
+}
+
+.hide-text {
+    text-indent: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.pointer {
+    cursor: pointer;
+}
+
+.emptybox {
+    width: 100%;
+    height: auto;
+    box-sizing: border-box;
+    text-align: center;
+    line-height: 40px;
+    font-size: 16px;
+    color: #999999;
+    position: relative;
+    border-radius: 10px;
+}
+
+.emptyitem {
+    width: 100%;
+    text-align: center;
+    height: auto;
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.emptybox img {
+    width: auto;
+    height: auto;
+}
+
+.shadow {
+    -webkit-box-shadow: 0 2px 4px rgba(0, 0, 0, .1);
+    -moz-box-shadow: 0 2px 4px rgba(0, 0, 0, .1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .1)
+}
+
+.text-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap
+}
+
+.text-ellipsistwo {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.boxShadow {
+    border-radius: 5px;
+    transition: box-shadow 0.3s;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+}
+
+.boxShadow:hover {
+    border-radius: 5px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.2);
+}
+
+.boxWhiteShadow {
+    border-radius: 5px;
+    transition: box-shadow 0.3s;
+    box-shadow: 0 2px 12px 0 rgba(255, 255, 255, 0.3);
+}
+
+.boxWhiteShadow:hover {
+    border-radius: 5px;
+    box-shadow: 0 2px 12px 0 rgba(255, 255, 255, 0.5);
+}
+
+.beautifulScroll::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+    background: #999999;
+    border-radius: 5px;
+}
+
+.beautifulScroll::-webkit-scrollbar-track {
+    background: #F5F5F5;
+    border-radius: 5px;
+}
+
+.beautifulScroll::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+    background: #999999;
+}
+
+.darkScorll::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+    background: #CCCCCC;
+    border-radius: 5px;
+}
+
+.darkScorll::-webkit-scrollbar-track {
+    background: #CCCCCC;
+    border-radius: 5px;
+}
+
+.darkScorll::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+    background: #999999;
+}
+
+.hiddenScroll::-webkit-scrollbar-thumb {
+    display: none !important;
+}
+
+.hiddenScroll::-webkit-scrollbar {
+    display: none !important;
+}
+
+.hiddenScroll::-webkit-scrollbar-track {
+    display: none !important;
+}
+
+.scrollmainY {
+    overflow-x: hidden;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+}
+
+.container {
+    padding: 20px 20px 0;
+}
+
+.container.padbot {
+    padding: 20px 20px 40px;
+
+}
+
+.general-card {
+    box-sizing: border-box;
+    padding: 0 0 0 0;
+}
+
+.general-card {
+    border-radius: 4px;
+    border: none;
+
+    &>.arco-card-header {
+        height: auto;
+        padding: 20px;
+        border: none;
+    }
+
+    &>.arco-card-body {
+        padding: 0 20px 20px 20px;
+    }
+}
+
+.data-card {
+    box-sizing: border-box;
+    padding: 20px 0 0 0;
+    border-radius: 4px;
+    border: none;
+
+    &>.arco-card-header {
+        height: auto;
+        padding: 20px;
+        border: none;
+    }
+
+    &>.arco-card-body {
+        padding: 0 20px 20px 20px;
+    }
+}
+
+.data-card-btns {
+    text-align: center;
+}
+
+.data-tabs {
+    .arco-tabs-content {
+        padding-top: 0 !important;
+
+        background: #ffffff;
+    }
+
+    .arco-tabs-nav-type-card-gutter .arco-tabs-tab {
+        background: #ffffff;
+    }
+
+    .arco-tabs-nav-type-card-gutter .arco-tabs-tab-active,
+    .arco-tabs-nav-type-card-gutter .arco-tabs-tab-active:hover {
+        color: #ffffff;
+        background: rgb(var(--primary-6));
+    }
+}
+
+.upload_box .arco-upload-progress {
+    display: none !important;
+}
