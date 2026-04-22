@@ -147,13 +147,13 @@
                 <i title="段前间距"></i>
                 <div class="options">
                   <ul>
-                     <li data-pspacing-before="0">0</li>
-                     <li data-pspacing-before="0.5">0.5</li>
-                     <li data-pspacing-before="1.0">1.0</li>
-                     <li data-pspacing-before="1.2">1.2</li>
-                     <li data-pspacing-before="1.5">1.5</li>
-                     <li data-pspacing-before="2.0">2.0</li>
-                     <li data-pspacing-before="2.5">2.5</li>
+                    <li data-pspacing-before="0">0</li>
+                    <li data-pspacing-before="0.5">0.5</li>
+                    <li data-pspacing-before="1.0">1.0</li>
+                    <li data-pspacing-before="1.2">1.2</li>
+                    <li data-pspacing-before="1.5">1.5</li>
+                    <li data-pspacing-before="2.0">2.0</li>
+                    <li data-pspacing-before="2.5">2.5</li>
                   </ul>
                 </div>
               </div>
@@ -161,13 +161,13 @@
                 <i title="段后间距"></i>
                 <div class="options">
                   <ul>
-                     <li data-pspacing-after="0">0</li>
-                     <li data-pspacing-after="0.5">0.5</li>
-                     <li data-pspacing-after="1.0">1.0</li>
-                     <li data-pspacing-after="1.2">1.2</li>
-                     <li data-pspacing-after="1.5">1.5</li>
-                     <li data-pspacing-after="2.0">2.0</li>
-                     <li data-pspacing-after="2.5">2.5</li>
+                    <li data-pspacing-after="0">0</li>
+                    <li data-pspacing-after="0.5">0.5</li>
+                    <li data-pspacing-after="1.0">1.0</li>
+                    <li data-pspacing-after="1.2">1.2</li>
+                    <li data-pspacing-after="1.5">1.5</li>
+                    <li data-pspacing-after="2.0">2.0</li>
+                    <li data-pspacing-after="2.5">2.5</li>
                   </ul>
                 </div>
               </div>
@@ -368,8 +368,7 @@
               <div class="menu-item__import" @click="triggerImportWord" title="导入文稿 (.docx)">
                 导入
               </div>
-              <input type="file" ref="fileInputRef" accept=".docx" style="display: none"
-                @change="handleImportWord" />
+              <input type="file" ref="fileInputRef" accept=".docx" style="display: none" @change="handleImportWord" />
 
               <div class="menu-item__export" @click="handleExportWord" title="导出为 Word">
                 导出
@@ -757,7 +756,7 @@ const saveToLocal = async (manual = false) => {
     // 存储数据核心部分
     const draftData = data.data;
     await dbService.set(DRAFT_KEY, draftData);
-    
+
     const now = new Date();
     lastSavedTime.value = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     if (manual) {
@@ -774,11 +773,11 @@ const saveToLocal = async (manual = false) => {
 
 const loadFromLocal = async () => {
   if (!instance) return;
-  
+
   try {
     // 优先尝试从 IndexedDB 加载
     let draftData = await dbService.get<any>(DRAFT_KEY);
-    
+
     // 如果 IndexedDB 为空，尝试从 localStorage 迁移 (处理旧版本数据)
     if (!draftData) {
       const oldDraft = localStorage.getItem(DRAFT_KEY);
@@ -800,7 +799,7 @@ const loadFromLocal = async () => {
     if (draftData) {
       // 兼容以前的包装格式
       const data = draftData.data || draftData;
-      
+
       // 如果数据结构不包含 main，可能是一个空对象或错误对象，跳过
       if (!data || (!data.main && !data.header && !data.footer)) {
         console.warn('无效的草稿数据', data);
@@ -847,7 +846,7 @@ onMounted(() => {
     }, {
       margins: [100, 120, 100, 120],
       watermark: {
-        data: '中飞内部文件',
+        data: '水印测试',
         color: '#f0f0f0',
         size: 30,
         repeat: true,

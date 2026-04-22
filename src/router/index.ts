@@ -13,7 +13,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: 'wordsbt',
+      redirect: 'words',
     },
     {
       path: '/login',
@@ -24,18 +24,11 @@ const router = createRouter({
       },
     },
 
-    {
-      path: '/word',
-      name: 'word',
-      component: () => import('@/views/word/index.vue'),
-      meta: {
-        requiresAuth: false,
-      },
-    },
+
     {
       path: '/words',
       name: 'words',
-      component: () => import('@/views/words/index.vue'),
+      component: () => import('@/views/wordsbeat/index.vue'),
       meta: {
         requiresAuth: false,
       },
