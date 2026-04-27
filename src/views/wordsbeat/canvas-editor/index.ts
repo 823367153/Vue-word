@@ -1,6 +1,5 @@
 import './assets/css/index.css'
 import { version } from './version'
-
 import { IEditorData, IEditorOption, IEditorResult } from './interface/Editor'
 import { IElement } from './interface/Element'
 import { Draw } from './core/draw/Draw'

@@ -33,6 +33,4 @@ export interface ITd {
   realMinHeight?: number // 真实最小高度（包含跨列）
   disabled?: boolean // 内容不可编辑
   deletable?: boolean // 内容不可删除
-  isVerticalRestart?: boolean
-  isVerticalContinue?: boolean
 }

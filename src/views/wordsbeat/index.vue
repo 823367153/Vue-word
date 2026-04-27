@@ -23,6 +23,11 @@
               <div class="menu-item__redo"><i></i></div>
               <div class="menu-item__painter" title="格式刷(双击可连续使用)"><i></i></div>
               <div class="menu-item__format" title="清除格式"><i></i></div>
+              
+              <!-- AI 续写测试按钮 -->
+              <div class="menu-item__ai-test" @click="startMockAiStream" title="AI 流式续写 (模拟测试)" style="margin-left:8px; display:flex; align-items:center; cursor:pointer; font-size:14px; color:#409EFF; font-weight:bold; padding:0 8px; border-radius:4px; background:#ecf5ff;">
+                ✨ AI
+              </div>
             </div>
 
             <div class="menu-item">
@@ -520,6 +525,79 @@ const DRAFT_KEY = 'wordsbeat_draft_data';
 const triggerImportWord = () => {
   fileInputRef.value?.click();
 };
+
+// --- AI 模拟流式生成相关 ---
+let aiRenderInterval: number | null = null;
+let aiCharBuffer = '';
+let isGeneratingState = false;
+
+const startMockAiStream = () => {
+  if (!instance) return;
+  if (isGeneratingState) return;
+
+  // 模拟假数据
+  const mockStr = '你好！这是一段由前端定时器完全模拟的 AI 流式文字。\n我们将看到文字在不刷新光标、不卡顿的情况下，逐字、平滑地写入编辑器。\n\n技术上我们做了如下处理：\n1. 采用定时器对字符进行了 100ms 一次的节流聚合批量渲染。\n2. 改变了颜色为幽灵蓝，方便与用户原生输入进行区分。\n3. 在底层可开启历史记录栈剥离控制。\n享受流式输入的快感吧！';
+  let charIndex = 0;
+
+  isGeneratingState = true;
+  aiCharBuffer = '';
+
+  // 1. 暂停撤销重做记录（如果版本支持）
+  // @ts-ignore
+  if (instance.history && instance.history.pause) {
+    // @ts-ignore
+    instance.history.pause();
+  }
+
+  // 2. 开启渲染节流引擎 (每 100 毫秒清理缓存池并写入一次)
+  aiRenderInterval = window.setInterval(flushAiBufferToCanvas, 100);
+
+  // 3. 模拟 SSE 数据流无限推送 (每 30 毫秒推一个字)
+  const streamTimer = window.setInterval(() => {
+    if (charIndex < mockStr.length) {
+      aiCharBuffer += mockStr[charIndex];
+      charIndex++;
+    } else {
+      // 结束流
+      window.clearInterval(streamTimer);
+      finishAiGeneration();
+    }
+  }, 30);
+};
+
+const flushAiBufferToCanvas = () => {
+  if (!instance) return;
+  if (aiCharBuffer.length > 0) {
+    const textToInsert = aiCharBuffer;
+    aiCharBuffer = '';
+
+    // 向当前光标写入带有标记和颜色的文本缓存
+    instance.command.executeInsertElementList([{
+      value: textToInsert,
+      color: '#409EFF', // AI 专属蓝
+      extension: { isAI: true }
+    }] as any);
+  }
+};
+
+const finishAiGeneration = () => {
+  if (aiRenderInterval) {
+    window.clearInterval(aiRenderInterval);
+    aiRenderInterval = null;
+  }
+  flushAiBufferToCanvas(); // 清空最后残留的字符池
+
+  // 恢复历史记录栈
+  // @ts-ignore
+  if (instance && instance.history && instance.history.resume) {
+    // @ts-ignore
+    instance.history.resume();
+  }
+
+  isGeneratingState = false;
+  console.log('✨ AI 模拟生成结束');
+};
+// -----------------------------
 
 const handleExportWord = async () => {
   if (!instance) return;

@@ -37,9 +37,6 @@ export interface IElementStyle {
   strikeout?: boolean
   rowFlex?: RowFlex
   rowMargin?: number
-  spacingBefore?: number
-  spacingAfter?: number
-  indent?: number
   letterSpacing?: number
   textDecoration?: ITextDecoration
 }
