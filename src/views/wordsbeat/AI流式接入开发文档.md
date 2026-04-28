@@ -23,31 +23,50 @@
 **对于样式的控制权归属，我们建议采用【后端主导内容语义，前端兼容兜底】的模式。** 
 
 普通的 AI 模型由于习惯输出 Markdown（如 `**加粗**`, `### 标题`），但在流式的内联渲染过程中实时闭合 Markdown 是异常艰难且容易出错的。因此：
-1. **取消 Markdown 渲染**：要求 AI 仅生成纯文本。
-2. **动态渲染指令转移**：如果希望文字在显示时突出重点，**必须由后端或者中间映射服务在推送 SSE 包时，携带样式修饰参数下发给前端。**
+1. **自动制表识别**：前端已集成智能解析器，支持对标准 Markdown 表格 (Pipe Table) 和 **纯制表符分隔表格 (TSV)** 的流式识别。
+2. **多模态渲染支持**：如果希望文字在显示时突出重点或插入复杂元素，可以通过【带样式的文本块】或【结构化 JSON 块】实现。
+3. **样式控制权**：建议采用【后端主导内容语义，前端兼容兜底】的模式。
 
-### 2.3 数据 Chunk 格式进阶方案 (附带样式控制)
-为了让后端能够精细化控制流出来的每一个字的长相（字号、颜色、粗体等），可以复用编辑器原生的 `IElementStyle` 属性。在每一块 `data:` 返回时，带上对应的属性即可。
+### 2.3 数据 Chunk 格式方案 (支持样式、表格与复杂元素)
 
-**后端推送流进阶示例：**
+为了让后端能够精细化控制流出来的每一个字的长相（字号、颜色、粗体等），或直接插入复杂对象，前端支持以下多模态识别：
+
+**场景 A：推送带样式的文字流**
+后端可复用编辑器原生的 `IElementStyle` 属性。在每一块 `data:` 返回时，带上对应的属性即可。
 ```text
 HTTP/1.1 200 OK
 Content-Type: text/event-stream;charset=UTF-8
 
-// 常规文字，走前端默认光标样式兜底
+// 常规文字，走前端默认样式
 data: {"value": "在"}
 data: {"value": "接"}
 data: {"value": "下"}
 data: {"value": "来", "done": false}
 
-// 后端判定此处为重要重点！要求加大加粗发红
+// 后端判定此处为重点！要求加大加粗发红
 data: {"value": "严重警告", "color": "#FF0000", "bold": true, "size": 18}
+```
 
-// 段落需要拆分换行
-data: {"value": "\n"}
+**场景 B：推送 Markdown 表格文本 (自动识别)**
+如果模型输出的是 Markdown 表格，前端解析器会自动“蓄力”缓存，并在识别到闭合边界后转为原生表格。
+```text
+data: {"value": "| 指标 | 数值 |\n"}
+data: {"value": "|---|---|\n"}
+data: {"value": "| AI 识别率 | 100% |\n"}
+```
 
-// 后端指示结束
-data: {"value": "。", "done": true}
+**场景 C：推送制表符 (TSV) 列表 (自动识别)**
+支持标准的制表符分隔列表（完美兼容从 Excel/Word 复制出的格式），AI 常用于快速列举数据：
+```text
+data: {"value": "产品名称\t产品数量\n"}
+data: {"value": "笔记本电脑\t35\n"}
+data: {"value": "无线鼠标\t120\n"}
+```
+
+**场景 D：直接推送结构化元素 (推荐用于精准控制表格、图片、公式)**
+后端可以直接推送符合 IElement 规范的完整 JSON，前端会自动将其作为原子块插入。
+```text
+data: {"type": "table", "trList": [...], "colgroup": [...]}
 ```
 
 *   `value`: 代表当前内容切片字符串。（极其重要：这里使用 `value` 是为了与我们在《后端格式对应文档.md》中定义的 `IElement.value` 保持 100% 同构一致！）
@@ -86,41 +105,102 @@ while (true) {
 **严禁每解析出一个字就调用写入方法！**
 建立一个全局时间环（一般设定为 100 毫秒 - 150 毫秒之间），周期性地将这 100ms 内收到的攒好的字符串塞入画布。
 
-```javascript
-let aiCharBuffer = ''; // 前端的全局字符缓存池
-let aiRenderInterval = null; // 调度引擎
+### 3.3 核心解析引擎：支持混合模态识别
 
-// 启动大模型生成前：建立监听
-aiRenderInterval = window.setInterval(() => {
-  if (aiCharBuffer.length > 0) {
-    // 【修改点】由于现在要求支持后端携带的多样化动态样式，这里应当由一个更智能的对象池接管，
-    // 但为保证节流性能，一种主流做法是只合并「样式相同的文本段」。
-    // 假设您采用简单的全量对象提取法：
-    const elementsToInsert = parseBufferToElementArray(aiCharBuffer);
-    
-    // 如果是简单的单一文本追加方式，可以直接向编辑器画布中批量灌入
-    instance.command.executeInsertElementList(elementsToInsert);
+前端渲染器不再是简单的字符追加，而是一个带有“语法与结构感知”的混合引擎。
 
-    aiCharBuffer = ''; // 清空池子
-  }
-}, 100); 
-
-/* *
- * 解析工具集：您可以在解析 SSE Stream 时把带有 size/color 的 JSON 都挂在原始队列里。
- * 当需要插入时，透传这些被后端定好的样式。如果没有，就走默认 AI 幽灵蓝。
+/**
+ * 辅助函数：将 Markdown 表格转为编辑器原生 Table 元素
  */
-function createAiElement(chunkObj) {
+function convertMarkdownTableToElement(mdTable) {
+  const lines = mdTable.trim().split(/\r?\n/);
+  // 过滤掉分隔行 |---| 
+  const dataLines = lines.filter(line => !line.match(/^\|?\s*[:\-|\s]+\s*\|?$/));
+  if (dataLines.length === 0) return null;
+
   return {
-    value: chunkObj.value,               // 直接取后端的 value
-    color: chunkObj.color || '#409EFF',  // 如果后端发了颜色用后端的，没发用默认
-    size: chunkObj.size || 16,
-    bold: chunkObj.bold || false,
+    type: 'table',
+    trList: dataLines.map(line => ({
+      tdList: line.trim().replace(/^\||\|$/g, '').split('|').map(cell => ({
+        value: [{ value: cell.trim() }], // 单元格内容同构
+        rowspan: 1,
+        colspan: 1,
+        height: 0
+      }))
+    })),
+    colgroup: Array(dataLines[0].split('|').length).fill({ width: 150 }),
     extension: { isAI: true }
+  };
+}
+
+/**
+ * 辅助函数：将 制表符 (TSV) 表格转为编辑器原生 Table 元素
+ */
+function convertTsvTableToElement(tsvTable) {
+  const lines = tsvTable.trim().split(/\r?\n/);
+  if (lines.length === 0) return null;
+
+  const trList = lines.map(line => ({
+    tdList: line.split('\t').map(cell => ({
+      value: [{ value: cell.trim() }],
+      rowspan: 1,
+      colspan: 1,
+      height: 0
+    }))
+  }));
+
+  return {
+    type: 'table',
+    trList: trList,
+    colgroup: Array(trList[0].tdList.length).fill({ width: 150 }),
+    extension: { isAI: true }
+  };
+}
+
+/**
+ * 节流渲染引擎逻辑 (flushAiBufferToCanvas)
+ * 核心逻辑：带有“语法感知”的缓冲区管理
+ */
+const flushAiBufferToCanvas = () => {
+  while (aiCharBuffer.length > 0) {
+    const text = aiCharBuffer;
+    
+    // 1. 正则尝试匹配表格起始 (mdStartRegex / tsvStartRegex)
+    // 2. 寻找表格边界循环
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const isLastLine = i === lines.length - 1;
+
+      if (tableType === 'tsv') {
+        if (i > 1 && (line === '' || !line.includes('\t'))) {
+          // 关键：在生成过程中，忽略最后一行（即便是空行）的终结判定
+          if (isLastLine && isGeneratingState) {
+            // 继续等待下一波数据补全
+          } else {
+            tableEndLineIndex = i; // 确定表格在此结束
+            hasSeenNonTableLine = true;
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. 情况 B: 潜力特征锁定 (防止表格行被误刷为文本)
+    if (isGeneratingState) {
+      splitLineIndex = linesArray.length - 1; // 默认保留最后一行
+      for (let i = 0; i < linesArray.length; i++) {
+        // 核心修复：只要发现任何一行有表格特征，锁定该行及其后续所有内容
+        if (linesArray[i].includes('\t') || linesArray[i].trimStart().startsWith('|')) {
+          splitLineIndex = i;
+          break;
+        }
+      }
+    }
   }
 }
 ```
 
-### 3.3 撤销栈安全锁
+### 3.4 撤销栈安全锁
 流式输出如果未加处理会产生多条连续的历史，污染用户的 `Ctrl+Z` 行为。
 在编辑器启动流之前和结束流之后，务必进行干预：
 ```javascript

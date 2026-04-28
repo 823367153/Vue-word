@@ -23,10 +23,9 @@
               <div class="menu-item__redo"><i></i></div>
               <div class="menu-item__painter" title="格式刷(双击可连续使用)"><i></i></div>
               <div class="menu-item__format" title="清除格式"><i></i></div>
-
+              
               <!-- AI 续写测试按钮 -->
-              <div class="menu-item__ai-test" @click="startMockAiStream" title="AI 流式续写 (模拟测试)"
-                style="margin-left:8px; display:flex; align-items:center; cursor:pointer; font-size:14px; color:#409EFF; font-weight:bold; padding:0 8px; border-radius:4px; background:#ecf5ff;">
+              <div class="menu-item__ai-test" @click="startMockAiStream" title="AI 流式续写 (模拟测试)" style="margin-left:8px; display:flex; align-items:center; cursor:pointer; font-size:14px; color:#409EFF; font-weight:bold; padding:0 8px; border-radius:4px; background:#ecf5ff;">
                 ✨ AI
               </div>
             </div>
@@ -532,100 +531,28 @@ let aiRenderInterval: number | null = null;
 let aiCharBuffer = '';
 let isGeneratingState = false;
 
-/**
- * 辅助函数：将完整 Markdown 表格字符串转为 IElement 结构
- */
-function convertMarkdownTableToElement(mdTable: string) {
-  const lines = mdTable.trim().split(/\r?\n/);
-  // 过滤掉分隔行 |---|
-  const dataLines = lines.filter(line => !line.match(/^\|?\s*[:\-|\s]+\s*\|?$/));
-
-  if (dataLines.length === 0) return null;
-
-  const trList = dataLines.map(line => {
-    // 处理两端的 |，然后分割
-    const cells = line.trim().replace(/^\||\|$/g, '').split('|');
-    return {
-      tdList: cells.map(cell => ({
-        value: [{ value: cell.trim() }], // 遵循 IElement 嵌套规范
-        rowspan: 1,
-        colspan: 1,
-        height: 0 // 初始高度由引擎后续计算，但需声名
-      }))
-    };
-  });
-
-  return {
-    type: 'table',
-    trList: trList,
-    colgroup: Array(trList[0].tdList.length).fill({ width: 150 }), // 默认列宽
-    extension: { isAI: true }
-  };
-}
-
-function convertTsvTableToElement(tsvTable: string) {
-  const lines = tsvTable.trim().split(/\r?\n/);
-  if (lines.length === 0) return null;
-
-  const trList = lines.map(line => {
-    // 兼容纯制表符分隔
-    const cells = line.split('\t');
-    return {
-      tdList: cells.map(cell => ({
-        value: [{ value: cell.trim() }],
-        rowspan: 1,
-        colspan: 1,
-        height: 0
-      }))
-    };
-  });
-
-  return {
-    type: 'table',
-    trList: trList,
-    colgroup: Array(trList[0].tdList.length).fill({ width: 150 }),
-    extension: { isAI: true }
-  };
-}
-
 const startMockAiStream = () => {
   if (!instance) return;
   if (isGeneratingState) return;
 
-  // 模拟假数据，加入了 Markdown 表格和制表符表格
-  const mockStr = '你好！下面演示如何自动识别 Markdown 表格并转为编辑器的原生 Table 元素：\n\n' +
-    '| 标题指标 | 详细内容示例 |\n' +
-    '|---|---|\n' +
-    '| AI 智能识别 | 自动转换表格 |\n' +
-    '| AI 智能识别 | 自动转换表格 |\n' +
-    '| AI 智能识别 | 自动转换表格 |\n' +
-    '| AI 智能识别 | 自动转换表格 |\n' +
-    '| 流式渲染 | 缓冲区智能等待 |\n' +
-    '下面是**纯制表符 (TSV) 分隔**的列表，同样会自动生成标准表格：\n\n' +
-    '产品名称\t产品数量\n' +
-    '笔记本电脑\t35\n' +
-    '无线鼠标\t120\n' +
-    '无线鼠标\t120\n' +
-    '无线鼠标\t120\n' +
-    '无线鼠标\t120\n' +
-    '机械键盘\t86\n' +
-    '以上表格已被自动识别。继续输出普通文字...';
+  // 模拟假数据
+  const mockStr = '你好！这是一段由前端定时器完全模拟的 AI 流式文字。\n我们将看到文字在不刷新光标、不卡顿的情况下，逐字、平滑地写入编辑器。\n\n技术上我们做了如下处理：\n1. 采用定时器对字符进行了 100ms 一次的节流聚合批量渲染。\n2. 改变了颜色为幽灵蓝，方便与用户原生输入进行区分。\n3. 在底层可开启历史记录栈剥离控制。\n享受流式输入的快感吧！';
   let charIndex = 0;
 
   isGeneratingState = true;
   aiCharBuffer = '';
 
-  // 1. 暂停撤销重做记录
+  // 1. 暂停撤销重做记录（如果版本支持）
   // @ts-ignore
   if (instance.history && instance.history.pause) {
     // @ts-ignore
     instance.history.pause();
   }
 
-  // 2. 开启渲染节流引擎
-  aiRenderInterval = window.setInterval(flushAiBufferToCanvas, 150);
+  // 2. 开启渲染节流引擎 (每 100 毫秒清理缓存池并写入一次)
+  aiRenderInterval = window.setInterval(flushAiBufferToCanvas, 100);
 
-  // 3. 模拟 SSE 数据流推送
+  // 3. 模拟 SSE 数据流无限推送 (每 30 毫秒推一个字)
   const streamTimer = window.setInterval(() => {
     if (charIndex < mockStr.length) {
       aiCharBuffer += mockStr[charIndex];
@@ -639,176 +566,17 @@ const startMockAiStream = () => {
 };
 
 const flushAiBufferToCanvas = () => {
-  if (!instance || aiCharBuffer.length === 0) return;
+  if (!instance) return;
+  if (aiCharBuffer.length > 0) {
+    const textToInsert = aiCharBuffer;
+    aiCharBuffer = '';
 
-  // 使用循环确保一次性处理完缓冲区内的所有内容块（如：表格 + 随后的文字）
-  while (aiCharBuffer.length > 0) {
-    const text = aiCharBuffer;
-
-    // 1. 自动识别：支持结构化 JSON 格式 (您的“我们的格式”)
-    if (text.trimStart().startsWith('{')) {
-      try {
-        const lastBraceIndex = text.lastIndexOf('}');
-        if (lastBraceIndex !== -1) {
-          const jsonStr = text.substring(0, lastBraceIndex + 1);
-          const jsonObj = JSON.parse(jsonStr);
-          // 如果是表格类型的 IElement
-          if (jsonObj.type === 'table') {
-            instance.command.executeInsertElementList([jsonObj]);
-            aiCharBuffer = text.substring(lastBraceIndex + 1);
-            continue;
-          }
-        }
-      } catch (e) {
-        // 解析失败则回滚到文本模式
-      }
-    }
-
-    // 2. 表格识别逻辑 (支持 Markdown 和 制表符 TSV)
-    const mdStartRegex = /^\|.*\|.*\r?\n\|[- :|]+\|/m;
-    const mdMatch = mdStartRegex.exec(text);
-
-    // 制表符表格特征：至少连续两行包含内部制表符 (排除行首缩进)
-    const tsvStartRegex = /^([^\r\n\t]+\t+[^\r\n]*\r?\n[^\r\n\t]+\t+[^\r\n]*)/m;
-    const tsvMatch = tsvStartRegex.exec(text);
-
-    let startMatch = null;
-    let tableType = '';
-
-    if (mdMatch && tsvMatch) {
-      if (mdMatch.index < tsvMatch.index) {
-        startMatch = mdMatch; tableType = 'md';
-      } else {
-        startMatch = tsvMatch; tableType = 'tsv';
-      }
-    } else if (mdMatch) {
-      startMatch = mdMatch; tableType = 'md';
-    } else if (tsvMatch) {
-      startMatch = tsvMatch; tableType = 'tsv';
-    }
-
-    if (startMatch) {
-      const tableStartIndex = startMatch.index;
-      const afterStartText = text.substring(tableStartIndex);
-      const lines = afterStartText.split(/\r?\n/);
-
-      // 寻找表格的边界：看到非表格行才算结束
-      let tableEndLineIndex = -1;
-      let hasSeenNonTableLine = false;
-
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const isLastLine = i === lines.length - 1;
-
-        if (tableType === 'md') {
-          // 如果遇到了不以 | 开头的行（排除前两行表头和分隔线）
-          if (i > 1 && line !== '' && !line.startsWith('|')) {
-            if (isLastLine && isGeneratingState) {
-              // 还在生成中，不认为是结束
-            } else {
-              tableEndLineIndex = i;
-              hasSeenNonTableLine = true;
-              break;
-            }
-          }
-        } else if (tableType === 'tsv') {
-          // TSV 表格结束条件：遇到空行，或者遇到没有内部制表符的行
-          if (i > 1 && (line === '' || !line.includes('\t'))) {
-            if (isLastLine && isGeneratingState) {
-              // 还在生成中，不轻易断定表格结束
-            } else {
-              tableEndLineIndex = i;
-              hasSeenNonTableLine = true;
-              break;
-            }
-          }
-        }
-      }
-
-      // 判定是否渲染：看到了确切的结尾，或者 AI 生成过程已经彻底结束了
-      if (hasSeenNonTableLine || !isGeneratingState) {
-        const tableLines = tableEndLineIndex !== -1 ? lines.slice(0, tableEndLineIndex) : lines;
-        const tableContent = tableLines.join('\n');
-
-        // 3.1 渲染表格前的文字
-        if (tableStartIndex > 0) {
-          instance.command.executeInsertElementList([{
-            value: text.substring(0, tableStartIndex),
-            color: '#409EFF',
-            extension: { isAI: true }
-          }]);
-        }
-
-        // 3.2 渲染完整表格
-        const tableEl = tableType === 'md' ? convertMarkdownTableToElement(tableContent) : convertTsvTableToElement(tableContent);
-        if (tableEl) {
-          instance.command.executeInsertElementList([
-            { value: '\n' },
-            tableEl as any,
-            { value: '\n' }
-          ]);
-        }
-
-        // 3.3 消费掉已处理的块，继续循环处理后续内容
-        aiCharBuffer = text.substring(tableStartIndex + tableContent.length);
-        continue;
-      } else {
-        // 表格还没写完且生成未结束，先刷掉表格前的文字，保留表格内容等待补全
-        if (tableStartIndex > 0) {
-          instance.command.executeInsertElementList([{
-            value: text.substring(0, tableStartIndex),
-            color: '#409EFF',
-            extension: { isAI: true }
-          }]);
-          aiCharBuffer = text.substring(tableStartIndex);
-        }
-        break; // 停止当前循环，等待下一波数据补全
-      }
-    } else {
-      // --- 情况 B: 没有匹配到完整表格起始特征 ---
-      // 检查缓冲区末尾是否有等待补全的表格苗头
-      const linesArray = text.split('\n');
-      let splitLineIndex = -1;
-
-      if (isGeneratingState) {
-        // 策略：为了识别精度，我们至少保留最后一行（未竟行）不刷出
-        splitLineIndex = linesArray.length - 1;
-
-        // 核心修复：从前往后扫描，只要发现某一行有表格特征（| 或 \t），
-        // 就必须从这一行开始截断，防止表格的前几行被当做普通文字提前刷走。
-        for (let i = 0; i < linesArray.length; i++) {
-          const line = linesArray[i];
-          if (line.includes('\t') || line.trimStart().startsWith('|')) {
-            splitLineIndex = i;
-            break;
-          }
-        }
-      }
-
-      if (splitLineIndex > 0) {
-        // 把前面的安全行拼接刷出
-        const preText = linesArray.slice(0, splitLineIndex).join('\n') + '\n';
-        instance.command.executeInsertElementList([{
-          value: preText,
-          color: '#409EFF',
-          extension: { isAI: true }
-        }]);
-        // 剩下的留在缓冲区等补全
-        aiCharBuffer = linesArray.slice(splitLineIndex).join('\n');
-        break;
-      } else if (splitLineIndex === 0) {
-        // 只有一行或特征就在首行，全留着
-        break;
-      } else {
-        // 没有任何苗头（通常发生在生成结束后的最后一次 flush）
-        instance.command.executeInsertElementList([{
-          value: text,
-          color: '#409EFF',
-          extension: { isAI: true }
-        }]);
-        aiCharBuffer = ''; // 缓冲区清空
-      }
-    }
+    // 向当前光标写入带有标记和颜色的文本缓存
+    instance.command.executeInsertElementList([{
+      value: textToInsert,
+      color: '#409EFF', // AI 专属蓝
+      extension: { isAI: true }
+    }] as any);
   }
 };
 
@@ -817,10 +585,6 @@ const finishAiGeneration = () => {
     window.clearInterval(aiRenderInterval);
     aiRenderInterval = null;
   }
-
-  // 先把状态关掉，flush 逻辑看到 false 就会强制倒出缓冲区所有内容
-  isGeneratingState = false;
-
   flushAiBufferToCanvas(); // 清空最后残留的字符池
 
   // 恢复历史记录栈
@@ -830,6 +594,7 @@ const finishAiGeneration = () => {
     instance.history.resume();
   }
 
+  isGeneratingState = false;
   console.log('✨ AI 模拟生成结束');
 };
 // -----------------------------
