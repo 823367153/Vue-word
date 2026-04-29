@@ -255,6 +255,11 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
           list.push({ value: '\n' });
         }
       } else if (wp.nodeName === 'w:tbl') {
+        // --- 优化：移除表格前多余的空行，防止表格被挤到下一页 ---
+        while (list.length > 0 && list[list.length - 1].value === '\n' && !list[list.length - 1].type) {
+          list.pop();
+        }
+        // 表格后补充一个换行即可
         list.push(...parseTable(wp as Element));
       }
     }
@@ -270,136 +275,152 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
 
     const trs = Array.from(tbl.childNodes).filter(n => n.nodeName === 'w:tr');
 
-    // 注入列宽设定
+    // 1. 提取列宽设定 (w:tblGrid)
     let colgroups: { width: number }[] = [];
     const tblGrid = getChildNode(tbl, 'w:tblGrid');
     if (tblGrid) {
       const cols = Array.from(tblGrid.childNodes).filter(n => n.nodeName === 'w:gridCol');
       colgroups = cols.map(c => {
         const wStr = (c as Element).getAttribute('w:w') || '1000';
-        // w:w 是基于 twips 的（1/20 磅），转 px：twips / 20 * 1.333 ≈ twips / 15
         return { width: Math.max(30, Math.round(parseInt(wStr) / 15)) };
       });
     }
 
-    // 如果未获取到 tblGrid 宽度，则回退尝试读取第一行的所有 tcW (很多非严谨导出插件的做法)
-    if (colgroups.length === 0 && trs.length > 0) {
-      const firstRowTcs = Array.from(trs[0].childNodes).filter(n => n.nodeName === 'w:tc');
-      firstRowTcs.forEach(tc => {
-        const tcPr = getChildNode(tc, 'w:tcPr');
-        const tcW = tcPr ? getChildNode(tcPr, 'w:tcW') : null;
-        if (tcW) {
-          const wStr = tcW.getAttribute('w:w') || '1000';
-          colgroups.push({ width: Math.max(30, Math.round(parseInt(wStr) / 15)) });
-        } else {
-          colgroups.push({ width: 100 });
-        }
+    // 2. 建立逻辑矩阵处理 vMerge 和 gridSpan
+    const matrix: any[][] = [];
+    const rowCount = trs.length;
+    
+    // 动态探测最大列数
+    let maxColCount = colgroups.length;
+    for (const tr of trs) {
+      const tcs = Array.from(tr.childNodes).filter(n => n.nodeName === 'w:tc');
+      let currentTotalColspan = 0;
+      tcs.forEach(tc => {
+        const tcPr = getChildNode(tc as Element, 'w:tcPr');
+        const gridSpan = tcPr ? getChildNode(tcPr, 'w:gridSpan') : null;
+        currentTotalColspan += parseInt(gridSpan?.getAttribute('w:val') || '1');
+      });
+      maxColCount = Math.max(maxColCount, currentTotalColspan);
+    }
+    if (maxColCount === 0) maxColCount = 1;
+
+    // 补全 colgroups 并根据页面宽度 (554px) 进行自适应缩放
+    const PAGE_WIDTH = 554; 
+    const currentTotalWidth = colgroups.reduce((sum, col) => sum + col.width, 0);
+    
+    while (colgroups.length < maxColCount) {
+      colgroups.push({ width: 100 });
+    }
+
+    if (currentTotalWidth > PAGE_WIDTH || colgroups.length > 8) { // 超过 8 列或总宽超标则缩放
+      const ratio = PAGE_WIDTH / Math.max(currentTotalWidth, 1);
+      colgroups.forEach(col => {
+        col.width = Math.floor(col.width * ratio);
       });
     }
+    tableElement.colgroup = colgroups;
 
-    if (colgroups.length > 0) {
-      tableElement.colgroup = colgroups;
+    for (let r = 0; r < rowCount; r++) {
+      matrix[r] = new Array(maxColCount).fill(null);
     }
 
-    // 第一遍提取所有行和合并格标记
-    for (const tr of trs) {
-      let trHeight = 42;
-      const trPr = getChildNode(tr, 'w:trPr');
+    for (let r = 0; r < rowCount; r++) {
+      const tr = trs[r];
+      const tcs = Array.from(tr.childNodes).filter(n => n.nodeName === 'w:tc');
+      let matrixColIndex = 0;
+
+      for (let i = 0; i < tcs.length; i++) {
+        const tc = tcs[i] as Element;
+        const tcPr = getChildNode(tc, 'w:tcPr');
+        
+        let colspan = 1;
+        const gridSpan = tcPr ? getChildNode(tcPr, 'w:gridSpan') : null;
+        if (gridSpan) colspan = parseInt(gridSpan.getAttribute('w:val') || '1');
+
+        let vMerge: string | null = null;
+        const vMergeNode = tcPr ? getChildNode(tcPr, 'w:vMerge') : null;
+        if (vMergeNode) vMerge = vMergeNode.getAttribute('w:val') || 'continue';
+
+        // 寻找当前行第一个空位
+        while (matrixColIndex < maxColCount && matrix[r][matrixColIndex] !== null) {
+          matrixColIndex++;
+        }
+        if (matrixColIndex >= maxColCount) break;
+
+        const tdElements = parseNodes(tc.childNodes);
+        // 优化：移除单元格末尾多余的换行，节省垂直空间
+        while (tdElements.length > 1 && tdElements[tdElements.length - 1].value === '\n') {
+          tdElements.pop();
+        }
+        if (tdElements.length === 0) tdElements.push({ value: '\n' });
+
+        const td: any = {
+          colspan,
+          rowspan: 1,
+          value: tdElements,
+          vMerge
+        };
+
+        // --- 核心修复：解析垂直对齐方式 ---
+        const vAlignNode = tcPr ? getChildNode(tcPr, 'w:vAlign') : null;
+        if (vAlignNode) {
+          const val = vAlignNode.getAttribute('w:val');
+          if (val === 'center') td.verticalAlign = 'middle';
+          else if (val === 'bottom') td.verticalAlign = 'bottom';
+        }
+
+        const shd = tcPr ? getChildNode(tcPr, 'w:shd') : null;
+        if (shd && shd.getAttribute('w:fill') && shd.getAttribute('w:fill') !== 'auto') {
+          td.backgroundColor = '#' + shd.getAttribute('w:fill');
+        }
+
+        // 处理 vMerge 逻辑
+        if (vMerge === 'continue' && r > 0) {
+          // 向上寻找该列的 master 格 (restart)
+          let foundMaster = false;
+          for (let prevR = r - 1; prevR >= 0; prevR--) {
+            const masterTd = matrix[prevR][matrixColIndex];
+            if (masterTd && !masterTd.isMerged && (masterTd.vMerge === 'restart' || !masterTd.vMerge)) {
+              masterTd.rowspan = (masterTd.rowspan || 1) + 1;
+              foundMaster = true;
+              break;
+            }
+          }
+          // 填充当前格占位
+          for (let cs = 0; cs < colspan; cs++) {
+            if (matrixColIndex + cs < maxColCount) {
+              matrix[r][matrixColIndex + cs] = { isMerged: true };
+            }
+          }
+        } else {
+          // 正常填充或 restart
+          for (let cs = 0; cs < colspan; cs++) {
+            if (matrixColIndex + cs < maxColCount) {
+              matrix[r][matrixColIndex + cs] = (cs === 0) ? td : { isMerged: true };
+            }
+          }
+        }
+        matrixColIndex += colspan;
+      }
+    }
+
+    // 3. 构建 trList
+    for (let r = 0; r < rowCount; r++) {
+      let trHeight = 32; // 降低默认行高，给排版留出空间
+      const trPr = getChildNode(trs[r], 'w:trPr');
       if (trPr) {
         const hNode = getChildNode(trPr, 'w:trHeight');
-        if (hNode && hNode.getAttribute('w:val')) {
-          const rawHeight = parseInt(hNode.getAttribute('w:val')!);
-          trHeight = Math.max(20, Math.round(rawHeight / 15));
+        if (hNode?.getAttribute('w:val')) {
+          trHeight = Math.max(20, Math.round(parseInt(hNode.getAttribute('w:val')!) / 15.5));
         }
       }
 
       const rowItem: any = {
         height: trHeight,
-        tdList: []
+        tdList: matrix[r].filter(td => td && !td.isMerged)
       };
-      const tcs = Array.from(tr.childNodes).filter(n => n.nodeName === 'w:tc');
-
-      for (const tc of tcs) {
-        let colspan = 1;
-        let rowspan = 1;
-        let backgroundColor: string | undefined;
-        let isVerticalRestart = false;
-        let isVerticalContinue = false;
-
-        const tcPr = getChildNode(tc, 'w:tcPr');
-        if (tcPr) {
-          const gridSpan = getChildNode(tcPr, 'w:gridSpan');
-          if (gridSpan && gridSpan.getAttribute('w:val')) {
-            colspan = parseInt(gridSpan.getAttribute('w:val')!) || 1;
-          }
-          const vMerge = getChildNode(tcPr, 'w:vMerge');
-          if (vMerge) {
-            const vMergeVal = vMerge.getAttribute('w:val');
-            if (vMergeVal === 'restart') {
-              isVerticalRestart = true;
-            } else {
-              isVerticalContinue = true;
-            }
-          } else if (getChildNode(tcPr, 'w:vMerge') || tcPr.querySelector('w\\:vMerge')) {
-            // 某些情况下无 val 默认为 continue
-            isVerticalContinue = true;
-          }
-
-          const shd = getChildNode(tcPr, 'w:shd');
-          if (shd && shd.getAttribute('w:fill') && shd.getAttribute('w:fill') !== 'auto') {
-            backgroundColor = '#' + shd.getAttribute('w:fill');
-          }
-        }
-
-        const tdElements = parseNodes(tc.childNodes);
-        if (tdElements.length === 0) tdElements.push({ value: '\n' });
-
-        rowItem.tdList.push({
-          colspan,
-          rowspan,
-          isVerticalRestart,
-          isVerticalContinue,
-          backgroundColor,
-          value: tdElements
-        });
-      }
+      rowItem.tdList.forEach((td: any) => delete td.vMerge);
       tableElement.trList!.push(rowItem);
-    }
-
-    // 第二遍：计算跨行数 (rowspan)
-    if (tableElement.trList) {
-      for (let r = 0; r < tableElement.trList.length; r++) {
-        const row = tableElement.trList[r];
-        let logicColIndex = 0;
-        for (let c = 0; c < row.tdList.length; c++) {
-          const td = row.tdList[c];
-          if (td.isVerticalRestart || (!td.isVerticalContinue && !td.isVerticalRestart && td.rowspan === 1)) {
-            let spans = 1;
-            // 沿着当前列往下检查是否有 continue 合并格
-            for (let nr = r + 1; nr < tableElement.trList.length; nr++) {
-              // 简单按索引查找对应位置（受复杂 colspan 影响可能需要二维矩阵，此处采用简化直接寻址）
-              const nextTd = tableElement.trList[nr].tdList[c];
-              if (nextTd && (nextTd.isVerticalContinue || nextTd.rowspan === 0)) {
-                spans++;
-              } else {
-                break;
-              }
-            }
-            td.rowspan = spans;
-          }
-          logicColIndex += (td.colspan || 1);
-        }
-      }
-
-      // 第三遍：从每一列移除 isVerticalContinue 被融合掉的节点 (对应 HTML rowspan 行为)
-      for (let r = 0; r < tableElement.trList.length; r++) {
-        const row = tableElement.trList[r];
-        row.tdList = row.tdList.filter((td: any) => !td.isVerticalContinue);
-        for (const td of row.tdList) {
-          delete (td as any).isVerticalRestart;
-          delete (td as any).isVerticalContinue;
-        }
-      }
     }
 
     return [tableElement, { value: '\n' }];
@@ -408,9 +429,9 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
   function parseParagraph(wp: Element, pLevelFont?: string): IElement[] {
     const lineElements: IElement[] = [];
 
-    // 1. 段落属性 (对齐, 大纲等级)
+    // 1. 段落属性 (对齐, 大纲等级, 分页符)
     const pPr = getChildNode(wp, 'w:pPr');
-    let rowFlex: RowFlex = RowFlex.LEFT; // 默认为左对齐，根治自动居中问题
+    let rowFlex: RowFlex = RowFlex.LEFT;
     let titleLevel: TitleLevel | undefined;
     let firstLineIndent: number = 0;
     let spacingBefore: number | undefined = undefined;
@@ -418,6 +439,11 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
     let rowMargin: number | undefined = undefined;
 
     if (pPr) {
+      /* 移除段前分页检测，避免部分公文模板强制跳转第二页 */
+      // if (getChildNode(pPr, 'w:pageBreakBefore')) {
+      //   lineElements.push({ type: ElementType.PAGE_BREAK, value: '' });
+      // }
+
       const spacingNode = getChildNode(pPr, 'w:spacing');
       if (spacingNode) {
         const before = spacingNode.getAttribute('w:before');
@@ -425,7 +451,6 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
         const after = spacingNode.getAttribute('w:after');
         if (after) spacingAfter = Math.round(parseInt(after) / 20);
         const line = spacingNode.getAttribute('w:line');
-        // Word line spacing (w:line) is relative to 240 twips = 1.0 (single line)
         if (line) rowMargin = Number((parseInt(line) / 240).toFixed(2));
       }
       const jc = getChildNode(pPr, 'w:jc');
@@ -440,8 +465,6 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
       if (pStyle) {
         const val = pStyle.getAttribute('w:val') || '';
         const lowerVal = val.toLowerCase();
-
-        // 增强模糊匹配：识别 Heading1, 标题 1, Heading 1 等变体
         if (lowerVal.includes('heading1') || lowerVal.includes('标题 1') || val === '1') titleLevel = TitleLevel.FIRST;
         else if (lowerVal.includes('heading2') || lowerVal.includes('标题 2') || val === '2') titleLevel = TitleLevel.SECOND;
         else if (lowerVal.includes('heading3') || lowerVal.includes('标题 3') || val === '3') titleLevel = TitleLevel.THIRD;
@@ -454,7 +477,6 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
       if (ind) {
         const firstLine = ind.getAttribute('w:firstLine');
         if (firstLine) {
-          // 假设一个字符约为 240 twips (对应 12pt/16px 字体)
           firstLineIndent = Math.round(parseInt(firstLine) / 240);
         }
       }
@@ -503,7 +525,6 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
 
         const fNode = getChildNode(rPr, 'w:rFonts');
         if (fNode) {
-          // 优先解析东亚字体（公文常见），回退到西音/hAnsi，甚至主题字体
           font = fNode.getAttribute('w:eastAsia') || 
                  fNode.getAttribute('w:ascii') || 
                  fNode.getAttribute('w:hAnsi') || 
@@ -513,22 +534,19 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
         }
       }
 
-      // 字体继承逻辑：Run级 -> 段落样式级 -> 文档默认级
       if (!font) font = pLevelFont || defaultFont;
       font = normalizeFont(font);
 
-      // 遍历 w:r 内部所有可能是文本、空行或图片的元素
       const rChildren = Array.from(r.childNodes);
       for (const child of rChildren) {
         if (child.nodeName === 'w:t' && child.textContent) {
           const textVal = child.textContent;
-          // Canvas Editor 0.0.x 版本的 DOCX 导出插件可能存在 Bug，将图片直接作为海量 Base64 文本输出到 w:t
           if (textVal.startsWith('data:image/') && textVal.includes('base64,')) {
             const blob = base64ToBlob(textVal);
             lineElements.push({
               type: ElementType.IMAGE,
               value: URL.createObjectURL(blob),
-              width: 400, // 默认回退宽高
+              width: 400,
               height: 400
             });
           } else {
@@ -545,25 +563,38 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
           }
         } else if (child.nodeName === 'w:tab') {
           lineElements.push({
-            value: '\t',
-            color, size, font, bold: isBold, italic: isItalic, strikeout: isStrike, underline: isUnderline
+            type: ElementType.TAB,
+            value: ''
           });
         } else if (child.nodeName === 'w:br') {
-          lineElements.push({
-            value: '\n',
-            color, size, font, bold: isBold, italic: isItalic, strikeout: isStrike, underline: isUnderline
-          });
-        } else if (child.nodeName === 'w:drawing') {
-          const extent = (child as Element).querySelector('extent, wp\\:extent');
-          let width = 200, height = 200;
+          const brType = (child as Element).getAttribute('w:type');
+          if (brType === 'page') {
+            lineElements.push({ type: ElementType.PAGE_BREAK, value: '' });
+          } else {
+            lineElements.push({ value: '\n' });
+          }
+        } else if (child.nodeName === 'w:drawing' || child.nodeName === 'w:pict') {
+          const drawingNode = child as Element;
+          let width = 200, height = 20; // 默认线段高度设小
+          
+          // 1. 获取尺寸 (wp:extent 或 v:shape style)
+          const extent = drawingNode.querySelector('extent, wp\\:extent');
           if (extent) {
             const cx = parseInt(extent.getAttribute('cx') || '0');
             const cy = parseInt(extent.getAttribute('cy') || '0');
             if (cx) width = Math.round(cx * 96 / 914400);
             if (cy) height = Math.round(cy * 96 / 914400);
+          } else if (child.nodeName === 'w:pict') {
+            const shape = drawingNode.querySelector('shape, v\\:shape');
+            const style = shape?.getAttribute('style') || '';
+            const wMatch = style.match(/width:([\d.]+)pt/);
+            const hMatch = style.match(/height:([\d.]+)pt/);
+            if (wMatch) width = Math.round(parseFloat(wMatch[1]) * 1.33);
+            if (hMatch) height = Math.round(parseFloat(hMatch[1]) * 1.33);
           }
 
-          const blip = (child as Element).querySelector('blip, a\\:blip');
+          // 2. 识别图片 (blip)
+          const blip = drawingNode.querySelector('blip, a\\:blip');
           if (blip) {
             const embedId = blip.getAttribute('r:embed');
             if (embedId && mediaMap.has(embedId)) {
@@ -573,10 +604,48 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
                 lineElements.push({
                   type: ElementType.IMAGE,
                   value: b64,
-                  width,
-                  height
+                  width: Math.max(width, 20),
+                  height: Math.max(height, 20)
                 });
               }
+            }
+          }
+          // 3. 深度识别线段特征 (ln, line, v:line, v:shape, prstGeom)
+          const ln = drawingNode.getElementsByTagName('a:ln')[0] || drawingNode.getElementsByTagName('ln')[0];
+          const vLine = drawingNode.getElementsByTagName('v:line')[0] || drawingNode.getElementsByTagName('line')[0];
+          const vShape = drawingNode.getElementsByTagName('v:shape')[0] || drawingNode.getElementsByTagName('shape')[0];
+          const prstGeom = drawingNode.getElementsByTagName('a:prstGeom')[0] || drawingNode.getElementsByTagName('prstGeom')[0];
+          
+          if (ln || vLine || vShape || (prstGeom && prstGeom.getAttribute('prst') === 'line')) {
+            // 判定是否为双线 (compound dbl)
+            const xmlStr = drawingNode.outerHTML || '';
+            const isDouble = xmlStr.includes('compound="dbl"') || xmlStr.includes('dbl');
+            
+            // 如果是 v:shape 或 prstGeom，尝试判定是否为横线
+            const isHorizontalLine = vLine || (prstGeom && prstGeom.getAttribute('prst') === 'line') || 
+                                     (vShape && (height < 10 || (vShape.getAttribute('path')?.includes('m') && !vShape.getAttribute('path')?.includes('v'))));
+
+            if (isHorizontalLine || ln) {
+              const svgHeight = Math.max(height, 8);
+              // 如果宽度太小（可能是解析失败），对于横线我们强制撑开
+              const drawWidth = width > 100 ? width : 554; 
+              
+              let svgPath = `<line x1="0" y1="${svgHeight/2}" x2="${drawWidth}" y2="${svgHeight/2}" stroke="black" stroke-width="1.5" />`;
+              if (isDouble) {
+                svgPath = `
+                  <line x1="0" y1="${svgHeight/2 - 2}" x2="${drawWidth}" y2="${svgHeight/2 - 2}" stroke="black" stroke-width="1.2" />
+                  <line x1="0" y1="${svgHeight/2 + 2}" x2="${drawWidth}" y2="${svgHeight/2 + 2}" stroke="black" stroke-width="1.2" />
+                `;
+              }
+              const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${drawWidth}" height="${svgHeight}">${svgPath}</svg>`;
+              const b64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+              
+              lineElements.push({
+                type: ElementType.IMAGE,
+                value: b64,
+                width: drawWidth,
+                height: svgHeight
+              });
             }
           }
         }
@@ -644,7 +713,6 @@ function mapNumFmtToListStyle(fmt: string): { type: ListType, style: ListStyle }
     case 'decimal':
       return { type: ListType.OL, style: ListStyle.DECIMAL };
     default:
-      // 对于 alpha, roman 等暂不支持的样式，回退到 decimal 但保持为 ol
       return { type: ListType.OL, style: ListStyle.DECIMAL };
   }
 }

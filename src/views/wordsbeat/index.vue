@@ -26,7 +26,7 @@
 
               <!-- AI 续写测试按钮 -->
               <div class="menu-item__ai-test" @click="startMockAiStream" title="AI 流式续写 (模拟测试)"
-                style="margin-left:8px; display:flex; align-items:center; cursor:pointer; font-size:14px; color:#409EFF; font-weight:bold; padding:0 8px; border-radius:4px; background:#ecf5ff;">
+                style="margin-left:8px; display:flex; align-items:center; cursor:pointer; font-size:14px; color:#409EFF; font-weight:bold; padding:0 8px; border-radius:4px; background:#ecf5ff; width: auto !important;">
                 ✨ AI
               </div>
             </div>
@@ -509,6 +509,7 @@ import { exportDocxFile } from './utils/docxExporter';
 import { Dialog } from './official-ui/components/dialog/Dialog';
 import { debounce } from './official-ui/utils';
 import { dbService } from './utils/db';
+import { Message, Notification } from '@arco-design/web-vue';
 import './official-ui/style.css';
 
 const editorRef = ref<HTMLDivElement | null>(null);
@@ -865,22 +866,50 @@ const handleImportWord = async (e: Event) => {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file || !instance) return;
 
+  // 1. 初步校验
+  if (!file.name.toLowerCase().endsWith('.docx')) {
+    Message.error('仅支持导入 .docx 格式的文档');
+    return;
+  }
 
   const reader = new FileReader();
   reader.onload = async (evt) => {
     try {
-      // 抛弃 mammoth 和底层插件，使用最高精度的原生自研 DOCX 解析
       console.log('【开始高精度重构 DOCX 获取样式...】');
       const elements = await parseDocxToElements(file);
       console.log('【原生提取 DOCX 完成】', elements);
 
       // 直接灌入 Canvas-Editor 的神经中枢
       instance!.command.executeSetValue({ main: elements });
-    } catch (err) {
-      console.error('DOCX 高进度解析发生异常，降级回退:', err);
-      const arrayBuffer = evt.target?.result as ArrayBuffer;
-      // @ts-ignore
-      instance!.command.executeImportDocx({ arrayBuffer });
+      Message.success('文档导入成功');
+    } catch (err: any) {
+      console.error('DOCX 高进度解析发生异常:', err);
+
+      // 如果是文件本身不是 ZIP (JSZip 报错)，直接提示
+      if (err.message && err.message.includes('zip file')) {
+        Message.error('文件解析失败：该文件不是有效的 DOCX 压缩包，可能是加密文档或重命名的非法文件');
+        return;
+      }
+
+      try {
+        const arrayBuffer = evt.target?.result as ArrayBuffer;
+        // @ts-ignore
+        if (instance!.command.executeImportDocx) {
+          // @ts-ignore
+          instance!.command.executeImportDocx({ arrayBuffer });
+          Notification.warning({
+            title: '导入兼容性提醒',
+            content: '该文件部分复杂格式由于兼容性原因未能完全解析，已尝试切换至引擎底层模式导入。建议检查文档样式。',
+            duration: 5000
+          });
+        } else {
+          // 如果连兜底命令都没有，则直接报错
+          throw new Error('No fallback import command available');
+        }
+      } catch (fallbackErr) {
+        console.error('兼容模式导入也失败:', fallbackErr);
+        Message.error('文件导入失败：该 DOCX 格式暂不支持或文件已损坏');
+      }
     }
   };
   reader.readAsArrayBuffer(file);
@@ -1679,5 +1708,11 @@ const applyTemplate = (id: string) => {
   flex: 1;
   overflow-y: auto;
   position: relative;
+}
+
+/* 两个类共用样式，中间必须加 , 分隔 */
+.menu-item__import,
+.menu-item__export {
+  font-size: 12px;
 }
 </style>
