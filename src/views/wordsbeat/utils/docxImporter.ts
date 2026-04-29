@@ -103,7 +103,7 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
 
   if (stylesData) {
     const stylesDoc = parser.parseFromString(stylesData, 'text/xml');
-    
+
     // 1. 提取文档默认字体 (DocDefaults)
     const rPrDefault = stylesDoc.getElementsByTagName('w:docDefaults')[0]?.getElementsByTagName('w:rPrDefault')[0];
     if (rPrDefault) {
@@ -177,7 +177,7 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
   // 全局计数器：numId -> Map<ilvl, currentCount>
   const listCounterMap = new Map<string, Map<number, number>>();
 
-  function parseNodes(nodes: NodeList | Node[]): IElement[] {
+  async function parseNodes(nodes: NodeList | Node[]): Promise<IElement[]> {
     const list: IElement[] = [];
     const nodeArray = Array.from(nodes);
 
@@ -187,12 +187,12 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
         const pStyle = pPr?.querySelector('pStyle, w\\:pStyle')?.getAttribute('w:val');
         // 获取当前段落层级的字体（作为 Fallback）
         const pLevelFont = pStyle ? styleFontMap.get(pStyle) : undefined;
-        
+
         // 加强标题识别：Heading 样式或手动识别为大号字标题
         const isTitleStyle = pStyle?.toLowerCase().includes('heading') || pStyle?.toLowerCase().includes('title');
         const numPr = pPr ? getChildNode(pPr, 'w:numPr') : null;
 
-        const pElements = parseParagraph(wp as Element, pLevelFont);
+        const pElements = await parseParagraph(wp as Element, pLevelFont);
 
         if (numPr && !isTitleStyle) {
           const numIdNode = getChildNode(numPr, 'w:numId');
@@ -260,13 +260,13 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
           list.pop();
         }
         // 表格后补充一个换行即可
-        list.push(...parseTable(wp as Element));
+        list.push(...await parseTable(wp as Element));
       }
     }
     return list;
   }
 
-  function parseTable(tbl: Element): IElement[] {
+  async function parseTable(tbl: Element): Promise<IElement[]> {
     const tableElement: IElement = {
       type: ElementType.TABLE,
       value: '\n',
@@ -289,7 +289,7 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
     // 2. 建立逻辑矩阵处理 vMerge 和 gridSpan
     const matrix: any[][] = [];
     const rowCount = trs.length;
-    
+
     // 动态探测最大列数
     let maxColCount = colgroups.length;
     for (const tr of trs) {
@@ -305,9 +305,9 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
     if (maxColCount === 0) maxColCount = 1;
 
     // 补全 colgroups 并根据页面宽度 (554px) 进行自适应缩放
-    const PAGE_WIDTH = 554; 
+    const PAGE_WIDTH = 554;
     const currentTotalWidth = colgroups.reduce((sum, col) => sum + col.width, 0);
-    
+
     while (colgroups.length < maxColCount) {
       colgroups.push({ width: 100 });
     }
@@ -332,7 +332,7 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
       for (let i = 0; i < tcs.length; i++) {
         const tc = tcs[i] as Element;
         const tcPr = getChildNode(tc, 'w:tcPr');
-        
+
         let colspan = 1;
         const gridSpan = tcPr ? getChildNode(tcPr, 'w:gridSpan') : null;
         if (gridSpan) colspan = parseInt(gridSpan.getAttribute('w:val') || '1');
@@ -347,7 +347,7 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
         }
         if (matrixColIndex >= maxColCount) break;
 
-        const tdElements = parseNodes(tc.childNodes);
+        const tdElements = await parseNodes(tc.childNodes);
         // 优化：移除单元格末尾多余的换行，节省垂直空间
         while (tdElements.length > 1 && tdElements[tdElements.length - 1].value === '\n') {
           tdElements.pop();
@@ -426,7 +426,7 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
     return [tableElement, { value: '\n' }];
   }
 
-  function parseParagraph(wp: Element, pLevelFont?: string): IElement[] {
+  async function parseParagraph(wp: Element, pLevelFont?: string): Promise<IElement[]> {
     const lineElements: IElement[] = [];
 
     // 1. 段落属性 (对齐, 大纲等级, 分页符)
@@ -480,174 +480,233 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
           firstLineIndent = Math.round(parseInt(firstLine) / 240);
         }
       }
+      const pBdr = getChildNode(pPr, 'w:pBdr');
+      if (pBdr) {
+        console.log('  [探测到段落边框] XML:', pBdr.outerHTML);
+      }
     }
 
-    const runs = wp.childNodes;
-    for (const r of Array.from(runs)) {
-      if (r.nodeName !== 'w:r') continue;
-
-      // 2. 块特征
-      let color: string | undefined;
-      let size: number | undefined;
-      let font: string | undefined;
-      let isBold = false;
-      let isItalic = false;
-      let isStrike = false;
-      let isUnderline = false;
-
-      const rPr = getChildNode(r, 'w:rPr');
-      if (rPr) {
-        const cNode = getChildNode(rPr, 'w:color');
-        if (cNode && cNode.getAttribute('w:val') && cNode.getAttribute('w:val') !== 'auto') {
-          color = '#' + cNode.getAttribute('w:val');
-        }
-
-        const szNode = getChildNode(rPr, 'w:sz');
-        if (szNode && szNode.getAttribute('w:val')) {
-          size = Math.round((parseInt(szNode.getAttribute('w:val')!) / 2) * 1.333);
-        }
-
-        const checkBool = (tagName: string) => {
-          const node = getChildNode(rPr!, tagName);
-          if (node) {
-            const val = node.getAttribute('w:val');
-            return val !== '0' && val !== 'false';
-          }
-          return false;
-        };
-
-        isBold = checkBool('w:b');
-        isItalic = checkBool('w:i');
-        isStrike = checkBool('w:strike');
-
-        const uNode = getChildNode(rPr, 'w:u');
-        if (uNode && uNode.getAttribute('w:val') !== 'none') isUnderline = true;
-
-        const fNode = getChildNode(rPr, 'w:rFonts');
-        if (fNode) {
-          font = fNode.getAttribute('w:eastAsia') || 
-                 fNode.getAttribute('w:ascii') || 
-                 fNode.getAttribute('w:hAnsi') || 
-                 fNode.getAttribute('w:eastAsiaTheme') || 
-                 fNode.getAttribute('w:asciiTheme') || 
-                 undefined;
-        }
+    const pChildren = Array.from(wp.childNodes);
+    for (const child of pChildren) {
+      // 调试：打印所有发现的节点，追踪隐藏的线段
+      if (child.nodeName !== '#text') {
+        console.log('  [段落探测] 发现节点:', child.nodeName);
       }
 
-      if (!font) font = pLevelFont || defaultFont;
-      font = normalizeFont(font);
+      if (child.nodeName === 'w:r') {
+        // --- 追踪 Run 内部的一切 ---
+        Array.from(child.childNodes).forEach(rc => {
+          if (rc.nodeName !== '#text' && rc.nodeName !== 'w:rPr') {
+            console.log('    [Run子节点] 发现节点:', rc.nodeName);
+          }
+        });
+        // --- 处理文本块 ---
+        let color: string | undefined;
+        let size: number | undefined;
+        let font: string | undefined;
+        let isBold = false;
+        let isItalic = false;
+        let isStrike = false;
+        let isUnderline = false;
 
-      const rChildren = Array.from(r.childNodes);
-      for (const child of rChildren) {
-        if (child.nodeName === 'w:t' && child.textContent) {
-          const textVal = child.textContent;
-          if (textVal.startsWith('data:image/') && textVal.includes('base64,')) {
-            const blob = base64ToBlob(textVal);
-            lineElements.push({
-              type: ElementType.IMAGE,
-              value: URL.createObjectURL(blob),
-              width: 400,
-              height: 400
-            });
-          } else {
-            lineElements.push({
-              value: textVal,
-              color,
-              size,
-              font,
-              bold: isBold,
-              italic: isItalic,
-              strikeout: isStrike,
-              underline: isUnderline
-            });
-          }
-        } else if (child.nodeName === 'w:tab') {
-          lineElements.push({
-            type: ElementType.TAB,
-            value: ''
-          });
-        } else if (child.nodeName === 'w:br') {
-          const brType = (child as Element).getAttribute('w:type');
-          if (brType === 'page') {
-            lineElements.push({ type: ElementType.PAGE_BREAK, value: '' });
-          } else {
-            lineElements.push({ value: '\n' });
-          }
-        } else if (child.nodeName === 'w:drawing' || child.nodeName === 'w:pict') {
-          const drawingNode = child as Element;
-          let width = 200, height = 20; // 默认线段高度设小
-          
-          // 1. 获取尺寸 (wp:extent 或 v:shape style)
-          const extent = drawingNode.querySelector('extent, wp\\:extent');
-          if (extent) {
-            const cx = parseInt(extent.getAttribute('cx') || '0');
-            const cy = parseInt(extent.getAttribute('cy') || '0');
-            if (cx) width = Math.round(cx * 96 / 914400);
-            if (cy) height = Math.round(cy * 96 / 914400);
-          } else if (child.nodeName === 'w:pict') {
-            const shape = drawingNode.querySelector('shape, v\\:shape');
-            const style = shape?.getAttribute('style') || '';
-            const wMatch = style.match(/width:([\d.]+)pt/);
-            const hMatch = style.match(/height:([\d.]+)pt/);
-            if (wMatch) width = Math.round(parseFloat(wMatch[1]) * 1.33);
-            if (hMatch) height = Math.round(parseFloat(hMatch[1]) * 1.33);
+        let letterSpacing: number | undefined;
+
+        const rPr = getChildNode(child, 'w:rPr');
+        if (rPr) {
+          const cNode = getChildNode(rPr, 'w:color');
+          if (cNode && cNode.getAttribute('w:val') && cNode.getAttribute('w:val') !== 'auto') {
+            color = '#' + cNode.getAttribute('w:val');
           }
 
-          // 2. 识别图片 (blip)
-          const blip = drawingNode.querySelector('blip, a\\:blip');
-          if (blip) {
-            const embedId = blip.getAttribute('r:embed');
-            if (embedId && mediaMap.has(embedId)) {
-              const targetFile = mediaMap.get(embedId)!;
-              const b64 = mediaBase64Map.get(targetFile);
-              if (b64) {
-                lineElements.push({
-                  type: ElementType.IMAGE,
-                  value: b64,
-                  width: Math.max(width, 20),
-                  height: Math.max(height, 20)
-                });
-              }
+          const szNode = getChildNode(rPr, 'w:sz');
+          if (szNode && szNode.getAttribute('w:val')) {
+            size = Math.round((parseInt(szNode.getAttribute('w:val')!) / 2) * 1.333);
+          }
+
+          // 解析字符间距 (w:spacing 单位是 1/20 pt)
+          const spacingNode = getChildNode(rPr, 'w:spacing');
+          if (spacingNode && spacingNode.getAttribute('w:val')) {
+            letterSpacing = Math.round(parseInt(spacingNode.getAttribute('w:val')!) / 20);
+          }
+
+          const checkBool = (tagName: string) => {
+            const node = getChildNode(rPr!, tagName);
+            if (node) {
+              const val = node.getAttribute('w:val');
+              return val !== '0' && val !== 'false';
             }
-          }
-          // 3. 深度识别线段特征 (ln, line, v:line, v:shape, prstGeom)
-          const ln = drawingNode.getElementsByTagName('a:ln')[0] || drawingNode.getElementsByTagName('ln')[0];
-          const vLine = drawingNode.getElementsByTagName('v:line')[0] || drawingNode.getElementsByTagName('line')[0];
-          const vShape = drawingNode.getElementsByTagName('v:shape')[0] || drawingNode.getElementsByTagName('shape')[0];
-          const prstGeom = drawingNode.getElementsByTagName('a:prstGeom')[0] || drawingNode.getElementsByTagName('prstGeom')[0];
-          
-          if (ln || vLine || vShape || (prstGeom && prstGeom.getAttribute('prst') === 'line')) {
-            // 判定是否为双线 (compound dbl)
-            const xmlStr = drawingNode.outerHTML || '';
-            const isDouble = xmlStr.includes('compound="dbl"') || xmlStr.includes('dbl');
-            
-            // 如果是 v:shape 或 prstGeom，尝试判定是否为横线
-            const isHorizontalLine = vLine || (prstGeom && prstGeom.getAttribute('prst') === 'line') || 
-                                     (vShape && (height < 10 || (vShape.getAttribute('path')?.includes('m') && !vShape.getAttribute('path')?.includes('v'))));
+            return false;
+          };
 
-            if (isHorizontalLine || ln) {
-              const svgHeight = Math.max(height, 8);
-              // 如果宽度太小（可能是解析失败），对于横线我们强制撑开
-              const drawWidth = width > 100 ? width : 554; 
-              
-              let svgPath = `<line x1="0" y1="${svgHeight/2}" x2="${drawWidth}" y2="${svgHeight/2}" stroke="black" stroke-width="1.5" />`;
-              if (isDouble) {
-                svgPath = `
-                  <line x1="0" y1="${svgHeight/2 - 2}" x2="${drawWidth}" y2="${svgHeight/2 - 2}" stroke="black" stroke-width="1.2" />
-                  <line x1="0" y1="${svgHeight/2 + 2}" x2="${drawWidth}" y2="${svgHeight/2 + 2}" stroke="black" stroke-width="1.2" />
-                `;
-              }
-              const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${drawWidth}" height="${svgHeight}">${svgPath}</svg>`;
-              const b64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-              
+          isBold = checkBool('w:b');
+          isItalic = checkBool('w:i');
+          isStrike = checkBool('w:strike');
+
+          const uNode = getChildNode(rPr, 'w:u');
+          if (uNode && uNode.getAttribute('w:val') !== 'none') isUnderline = true;
+
+          const fNode = getChildNode(rPr, 'w:rFonts');
+          if (fNode) {
+            font = fNode.getAttribute('w:eastAsia') ||
+              fNode.getAttribute('w:ascii') ||
+              fNode.getAttribute('w:hAnsi') ||
+              fNode.getAttribute('w:eastAsiaTheme') ||
+              fNode.getAttribute('w:asciiTheme') ||
+              undefined;
+          }
+        }
+
+        if (!font) font = pLevelFont || defaultFont;
+        font = normalizeFont(font);
+
+        const rChildren = Array.from(child.childNodes);
+        for (const rChild of rChildren) {
+          if (rChild.nodeName === 'w:t' && rChild.textContent) {
+            const textVal = rChild.textContent;
+            if (textVal.startsWith('data:image/') && textVal.includes('base64,')) {
+              const blob = base64ToBlob(textVal);
               lineElements.push({
                 type: ElementType.IMAGE,
-                value: b64,
-                width: drawWidth,
-                height: svgHeight
+                value: URL.createObjectURL(blob),
+                width: 400,
+                height: 400
+              });
+            } else {
+              lineElements.push({
+                value: textVal,
+                color,
+                size,
+                font,
+                bold: isBold,
+                italic: isItalic,
+                strikeout: isStrike,
+                underline: isUnderline,
+                letterSpacing
               });
             }
+          } else if (rChild.nodeName === 'w:tab') {
+            lineElements.push({
+              type: ElementType.TAB,
+              value: ''
+            });
+          } else if (rChild.nodeName === 'w:br') {
+            const brType = (rChild as Element).getAttribute('w:type');
+            if (brType === 'page') {
+              lineElements.push({ type: ElementType.PAGE_BREAK, value: '' });
+            } else {
+              lineElements.push({ value: '\n' });
+            }
+          } else if (rChild.nodeName === 'w:drawing' || rChild.nodeName === 'w:pict') {
+            // 递归识别 r 内部的图形
+            await processDrawing(rChild as Element);
+          } else if (rChild.nodeName === 'mc:AlternateContent' || rChild.nodeName === 'AlternateContent') {
+            // --- 穿透 Run 内部的 AlternateContent ---
+            const choice = (rChild as Element).querySelector('Choice, mc\\:Choice');
+            if (choice) {
+              const ccNodes = Array.from(choice.childNodes);
+              for (const cc of ccNodes) {
+                if (cc.nodeName === 'w:drawing' || cc.nodeName === 'w:pict') {
+                  await processDrawing(cc as Element);
+                }
+              }
+            }
           }
+        }
+      } else if (child.nodeName === 'w:drawing' || child.nodeName === 'w:pict') {
+        // --- 核心修复：识别直接挂在 w:p 下的图形 ---
+        await processDrawing(child as Element);
+      } else if (child.nodeName === 'mc:AlternateContent' || child.nodeName === 'AlternateContent') {
+        // --- 穿透 AlternateContent ---
+        const choice = child.querySelector('Choice, mc\\:Choice');
+        if (choice) {
+          const children = Array.from(choice.childNodes);
+          for (const cc of children) {
+            if (cc.nodeName === 'w:drawing' || cc.nodeName === 'w:pict') {
+              await processDrawing(cc as Element);
+            }
+          }
+        }
+      }
+    }
+
+    // 将识别逻辑提取为函数
+    async function processDrawing(drawingNode: Element) {
+      console.log('【开始解析图形节点】:', drawingNode.nodeName);
+      let width = 200, height = 20;
+
+      const extent = drawingNode.querySelector('extent, wp\\:extent');
+      if (extent) {
+        const cx = parseInt(extent.getAttribute('cx') || '0');
+        const cy = parseInt(extent.getAttribute('cy') || '0');
+        if (cx) width = Math.round(cx * 96 / 914400);
+        if (cy) height = Math.round(cy * 96 / 914400);
+        console.log('【图形尺寸】从 extent 提取:', { width, height });
+      } else if (drawingNode.nodeName === 'w:pict') {
+        const shape = drawingNode.querySelector('shape, v\\:shape');
+        const style = shape?.getAttribute('style') || '';
+        const wMatch = style.match(/width:([\d.]+)pt/);
+        const hMatch = style.match(/height:([\d.]+)pt/);
+        if (wMatch) width = Math.round(parseFloat(wMatch[1]) * 1.33);
+        if (hMatch) height = Math.round(parseFloat(hMatch[1]) * 1.33);
+        console.log('【图形尺寸】从 VML 提取:', { width, height });
+      }
+
+      const blip = drawingNode.querySelector('blip, a\\:blip');
+      if (blip) {
+        const embedId = blip.getAttribute('r:embed');
+        console.log('【图片解析】命中 blip, embedId:', embedId);
+        if (embedId && mediaMap.has(embedId)) {
+          const targetFile = mediaMap.get(embedId)!;
+          const b64 = mediaBase64Map.get(targetFile);
+          if (b64) {
+            lineElements.push({
+              type: ElementType.IMAGE,
+              value: b64,
+              width: Math.max(width, 20),
+              height: Math.max(height, 20)
+            });
+          }
+        }
+      } else {
+        console.log('【图形解析】非图片内容，开始尝试探测线段形状...');
+        const ln = drawingNode.getElementsByTagName('a:ln')[0] || drawingNode.getElementsByTagName('ln')[0];
+        const vLine = drawingNode.getElementsByTagName('v:line')[0] || drawingNode.getElementsByTagName('line')[0];
+        const vShape = drawingNode.getElementsByTagName('v:shape')[0] || drawingNode.getElementsByTagName('shape')[0];
+        const prstGeom = drawingNode.getElementsByTagName('a:prstGeom')[0] || drawingNode.getElementsByTagName('prstGeom')[0];
+
+        if (ln || vLine || vShape || (prstGeom && prstGeom.getAttribute('prst') === 'line')) {
+          console.log('【线段解析】命中线段/形状特征!', { hasLn: !!ln, hasVLine: !!vLine, hasVShape: !!vShape, hasPrstGeom: !!prstGeom });
+          const xmlStr = drawingNode.outerHTML || '';
+          const isDouble = xmlStr.includes('compound="dbl"') || xmlStr.includes('dbl');
+          const isHorizontalLine = vLine || (prstGeom && prstGeom.getAttribute('prst') === 'line') ||
+            (vShape && (height < 15 || (vShape.getAttribute('path')?.includes('m') && !vShape.getAttribute('path')?.includes('v'))));
+
+          if (isHorizontalLine || ln) {
+            console.log('【线段解析】判定为有效横线, isDouble:', isDouble);
+            const svgHeight = Math.max(height, 8);
+            const drawWidth = width > 100 ? width : 554;
+
+            let svgPath = `<line x1="0" y1="${svgHeight / 2}" x2="${drawWidth}" y2="${svgHeight / 2}" stroke="black" stroke-width="1.5" />`;
+            if (isDouble) {
+              svgPath = `
+                <line x1="0" y1="${svgHeight / 2 - 2}" x2="${drawWidth}" y2="${svgHeight / 2 - 2}" stroke="black" stroke-width="1.2" />
+                <line x1="0" y1="${svgHeight / 2 + 2}" x2="${drawWidth}" y2="${svgHeight / 2 + 2}" stroke="black" stroke-width="1.2" />
+              `;
+            }
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${drawWidth}" height="${svgHeight}">${svgPath}</svg>`;
+            const b64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+
+            lineElements.push({
+              type: ElementType.IMAGE,
+              value: b64,
+              width: drawWidth,
+              height: svgHeight
+            });
+          } else {
+            console.log('【线段解析】未能判定为有效横线');
+          }
+        } else {
+          console.log('【图形解析】未识别到任何已知形状特征, 原始 XML:', drawingNode.outerHTML);
         }
       }
     }
@@ -690,7 +749,52 @@ export async function parseDocxToElements(file: File): Promise<IElement[]> {
     }
   }
 
-  elements.push(...parseNodes(body.childNodes));
+  // 3. 解析页眉 (Headers)
+  const headerFiles = Object.keys(zip.files).filter(name => name.startsWith('word/header')).sort();
+  for (const hFile of headerFiles) {
+    const hData = await zip.file(hFile)!.async('string');
+    const hDoc = parser.parseFromString(hData, 'text/xml');
+    const hHdr = hDoc.getElementsByTagName('w:hdr')[0];
+    if (hHdr) {
+      console.log('【发现页眉文件】:', hFile);
+      const hElements = await parseNodes(hHdr.childNodes);
+      elements.push(...hElements);
+    }
+  }
+
+  // --- 核心增强：全量图形预扫描 ---
+  let totalDrawings = xmlDoc.getElementsByTagName('w:drawing').length;
+  let totalPicts = xmlDoc.getElementsByTagName('w:pict').length;
+  
+  // 累计页眉中的图形
+  for (const hFile of headerFiles) {
+    const hData = await zip.file(hFile)!.async('string');
+    const hDoc = parser.parseFromString(hData, 'text/xml');
+    totalDrawings += hDoc.getElementsByTagName('w:drawing').length;
+    totalPicts += hDoc.getElementsByTagName('w:pict').length;
+  }
+  console.log(`【全量图形统计】(含正文+页眉) - drawing: ${totalDrawings}, pict: ${totalPicts}`);
+  
+  elements.push(...await parseNodes(body.childNodes));
+
+  // --- 后置处理：优化表格间距 ---
+  elements.forEach(el => {
+    if (el.type === ElementType.TABLE) {
+      el.trList?.forEach(tr => {
+        tr.tdList.forEach(td => {
+          td.value.forEach((cellEl: any) => {
+            // 压减表格内行间距
+            if (cellEl.rowMargin && cellEl.rowMargin > 1) cellEl.rowMargin = 1;
+            // 压减表格内异常的字符间距 (解决 {{createTime}} 等变量被拉伸的问题)
+            if (cellEl.letterSpacing && cellEl.letterSpacing > 1) cellEl.letterSpacing = 0;
+            // 表格内通常不需要首行缩进
+            if (cellEl.extension?.isFirstLineIndent) cellEl.value = '';
+          });
+        });
+      });
+    }
+  });
+
   return elements;
 }
 
